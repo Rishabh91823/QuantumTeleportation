@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Teleportation Visualizer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0d1117; color: #c9d1d9; text-align: center; padding: 40px; }
+        .container { max-width: 800px; margin: auto; background: #161b22; padding: 30px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+        h1 { color: #58a6ff; font-size: 24px; }
+        .controls { display: flex; justify-content: center; gap: 40px; margin: 25px 0; background: #0d1117; padding: 20px; border-radius: 8px; border: 1px solid #30363d; }
+        .slider-group { display: flex; flex-direction: column; align-items: center; }
+        input[type=range] { width: 200px; cursor: pointer; }
+        .val-display { font-family: monospace; color: #58a6ff; font-size: 16px; margin-top: 8px; }
+        button { background: #238636; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; max-width: 300px; }
+        button:hover { background: #2ea043; }
+        .chart-container { position: relative; height: 350px; width: 100%; margin-top: 25px; }
+        #status { margin-top: 15px; font-size: 14px; color: #8b949e; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Quantum Teleportation Engine</h1>
+        <p>Define a custom quantum state using Bloch sphere angles, teleport it, and observe the reconstructed probabilities.</p>
+        
+        <div class="controls">
+            <div class="slider-group">
+                <label for="theta">Theta (θ): Probability Amplitude</label>
+                <input type="range" id="theta" min="0" max="1" step="0.01" value="0.5" oninput="updateDisplays()">
+                <span class="val-display" id="theta-val">0.50 π rad</span>
+            </div>
+            
+            <div class="slider-group">
+                <label for="phi">Phi (φ): Quantum Phase</label>
+                <input type="range" id="phi" min="0" max="2" step="0.01" value="0" oninput="updateDisplays()">
+                <span class="val-display" id="phi-val">0.00 π rad</span>
+            </div>
+        </div>
+
+        <button onclick="runSimulation()">Execute Teleportation Sequence</button>
+        <div id="status">Adjust the sliders to define the payload state.</div>
+        
+        <div class="chart-container">
+            <canvas id="quantumChart"></canvas>
+        </div>
+    </div>
+
+<script>
+        let quantumChart;
+
+        function updateDisplays() {
+            document.getElementById('theta-val').innerText = parseFloat(document.getElementById('theta').value).toFixed(2) + " π rad";
+            document.getElementById('phi-val').innerText = parseFloat(document.getElementById('phi').value).toFixed(2) + " π rad";
+        }
+
+        async function runSimulation() {
+            document.getElementById('status').innerText = "Transpiling and executing on Qiskit AerSimulator...";
+            
+            const thetaMultiplier = parseFloat(document.getElementById('theta').value);
+            const phiMultiplier = parseFloat(document.getElementById('phi').value);
+            const theta = thetaMultiplier * Math.PI;
+            const phi = phiMultiplier * Math.PI;
+
+            try {
+                const response = await fetch('/run-teleportation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ theta: theta, phi: phi })
+                });
+                
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('status').innerText = "Simulation Complete! Displaying measurement distributions across 1024 shots.";
+                    renderChart(data.counts);
+                }
+            } catch (error) {
+                document.getElementById('status').innerText = "Error: Failed to connect to the Python backend.";
+            }
+        }
+
+        function renderChart(counts) {
+            const ctx = document.getElementById('quantumChart').getContext('2d');
+            const labels = Object.keys(counts).sort();
+            const dataPoints = labels.map(label => counts[label]);
+
+            if (quantumChart) { quantumChart.destroy(); }
+
+            quantumChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Measurement Frequency (1024 Shots)',
+                        data: dataPoints,
+                        backgroundColor: '#a371f7',
+                        borderColor: '#8957e5',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Occurrences', color: '#8b949e' }, ticks: { color: '#8b949e' } },
+                        x: { title: { display: true, text: 'Measurement Outcome (Bob | Alice_1 | Alice_0)', color: '#8b949e' }, ticks: { color: '#8b949e' } }
+                    },
+                    plugins: { legend: { labels: { color: '#c9d1d9' } } }
+                }
+            });
+        }
+    </script>
